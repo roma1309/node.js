@@ -7,6 +7,7 @@ const path = require('path');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const pdf2base64 = require('pdf-to-base64');
+const { json } = require('../db');
 
 
 class UserController {
@@ -29,10 +30,6 @@ class UserController {
         const user = await User.findByPk(id)
 
         const fileName = user.image
-        fs.unlink(path.resolve(__dirname, '..', 'static', fileName), err => {
-            if(err) throw err;
-            console.log('Файл успешно удалён');
-         });
 
         await User.destroy({where: {id}})
 
@@ -44,22 +41,32 @@ class UserController {
     }
 
     async updateUser(req, res, next){
-        const{lastName, firstName} = req.body
+        const{lastName, firstName,email} = req.body
         const id = req.user.id
         console.log(id)
+        const newFileName = null;
+        const user = await User.findByPk(id)
+
+        if(email) {
+        const candidate = await User.findOne({where: {email}})
+        if (candidate.id != user.id) {
+            return next(ApiError.badRequest('Пользователь с таким email уже существует'))
+        }
+        }
+            
+        if(req.files) {
         const {img} = req.files
-        let newFileName = uuid.v4() + ".jpg"
+        const newFileName = uuid.v4() + ".jpg"
         img.mv(path.resolve(__dirname, '..', 'static', newFileName))
 
-        const user = await User.findByPk(id)
-        
         const fileName = user.image
         fs.unlink(path.resolve(__dirname, '..', 'static', fileName), err => {
             if(err) throw err;
             console.log('Файл успешно удалён');
          });
+        }
 
-        await User.update({lastName: lastName, firstName:firstName,
+        await User.update({email: email, lastName: lastName, firstName:firstName,
              image:newFileName}, {where:{id: id}})    
         return res.json('User updated')
     }
@@ -68,7 +75,10 @@ class UserController {
         const doc = new PDFDocument();
         const{email} = req.body
         const user = await User.findOne({where: {email}})
-        doc.pipe(fs.createWriteStream('example.pdf'));
+        if(!user){
+            return res.json('false')
+        }
+        doc.pipe(fs.createWriteStream(path.resolve(__dirname, '..', 'pdf', user.email+'.pdf')))
         doc
          .fontSize(25)
          .text(user.firstName+' '+ user.lastName, 100, 100);
@@ -79,9 +89,6 @@ class UserController {
             valign: 'center'
           });
         doc.end();
-
-          console.log(pdf2base64('example.pdf'))
-         await User.update({pdf: pdf2base64('example.pdf')}, {where:{email}})  
         return res.json('true')
     }
 }

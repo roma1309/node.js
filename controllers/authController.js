@@ -17,12 +17,12 @@ const generateJwt = (id, email, role) => {
 class AuthController {
     async registration(req, res, next){
         const{email, password, lastName, firstName} = req.body
-        const {img} = req.files
         
-        if(!validator.validate(email) || !password || !lastName || !firstName || !img) {
+        if(!validator.validate(email) || !password || !lastName || !firstName || ! req.files) {
             return next(ApiError.badRequest('Неккоректный ввод данных'));
         }
 
+        const {img} = req.files
         const candidate = await User.findOne({where: {email}})
 
         if (candidate) {
